@@ -3,14 +3,21 @@
 #include "fileReader.cpp"
 #define MAKE_DEBUG(arg) ON_DEBUG(, debug_info_t{ __FILE__, __func__, __LINE__, arg })
 
+
+#define ERROR_PRINTF(format, ...) printf("\033[1;31m" format "\033[0m\n", ##__VA_ARGS__)
+#define OPERATION_PRINTF(format, ...) printf("\033[1;32m" format "\033[0m\n", ##__VA_ARGS__)
+
+
 void commandFromFileExecutor    (stack_t *stk,const char *fileName);
 void commandFromConsoleExecutor (stack_t *stk);
+int  bufferChecker              ();
+
 void addCommand                 (stack_t *stk);
 void subCommand                 (stack_t *stk);
 void divCommand                 (stack_t *stk);
 void outCommand                 (stack_t *stk);
-int  bufferChecker              ();
 
+//TODO: main in another file for all program
 int main(int argc, char *argv[])
 {
     stack_t stk = {};
@@ -23,8 +30,6 @@ int main(int argc, char *argv[])
     }
     commandFromFileExecutor(&stk, argv[1]);
     return 0;
-    //Получаем буффер
-    //В буфере выполняем команды
 }
 
 
@@ -36,7 +41,7 @@ void commandFromFileExecutor(stack_t *stk, const char *fileName)
     FILE* file = fopen(fileName, "rb");
     if (file == NULL)
     {
-        printf("Cannot open file <%s>\n", fileName);
+        ERROR_PRINTF("Cannot open file <%s>", fileName);
         return;
     }
     textInfo text = {};
@@ -50,25 +55,29 @@ void commandFromFileExecutor(stack_t *stk, const char *fileName)
         {
             case 1:
                 stackPush(stk, value);
+                printStackConsole(stk);
                 break;
             case 2:
                 addCommand(stk);
+                printStackConsole(stk);
                 break;
             case 3:
                 subCommand(stk);
+                printStackConsole(stk);
                 break;
             case 4:
                 divCommand(stk);
+                printStackConsole(stk);
                 break;
             case 5:
                 outCommand(stk);
                 break;
             case 6:
-                printf("Program finished\n");
+                printStackConsole(stk);
+                OPERATION_PRINTF("Program finished\n");
                 return;
             default: ;
         }
-        //printStackConsole(stk);
         value = 0;
         command = 0;
     }
@@ -86,61 +95,66 @@ void commandFromConsoleExecutor(stack_t *stk)
             case 1:
                 if(scanf("%d", &value) != 1)
                 {
-                    printf("Too low arguments\n");
+                    ERROR_PRINTF("Too low arguments");
                     while(getchar() != '\n');
                     continue;
                 }
 
                 if (bufferChecker())
                 {
-                    printf("Too much arguments\n");
+                    ERROR_PRINTF("Too much arguments\n");
                     break;
                 }
 
                 stackPush(stk, value);
+                printStackConsole(stk);
                 break;
             case 2:
                 if (bufferChecker())
                 {
-                    printf("Too much arguments\n");
+                    ERROR_PRINTF("Too much arguments\n");
                     break;
                 }
                 addCommand(stk);
+                printStackConsole(stk);
                 break;
             case 3:
                 if (bufferChecker())
                 {
-                    printf("Too much arguments\n");
+                    ERROR_PRINTF("Too much arguments\n");
                     break;
                 }
                 subCommand(stk);
+                printStackConsole(stk);
                 break;
             case 4:
                 if (bufferChecker())
                 {
-                    printf("Too much arguments\n");
+                    ERROR_PRINTF("Too much arguments\n");
                     break;
                 }
                 divCommand(stk);
+                printStackConsole(stk);
                 break;
             case 5:
                 if (bufferChecker())
                 {
-                    printf("Too much arguments\n");
+                    ERROR_PRINTF("Too much arguments\n");
                     break;
                 }
                 outCommand(stk);
+                printStackConsole(stk);
                 break;
             case 6:
                 if (bufferChecker())
                 {
-                    printf("Too much arguments\n");
+                    ERROR_PRINTF("Too much arguments\n");
                     break;
                 }
-                printf("Program finished\n");
+                OPERATION_PRINTF("Program finished\n");
                 return;
             default:
-                printf("Unknown command\n");
+                ERROR_PRINTF("Unknown command\n");
         }
         //printStackConsole(stk);
         value = 0;
@@ -164,7 +178,7 @@ void addCommand(stack_t *stk)
 {
     if (stk->size < 2)
     {
-        printf("You haven't enough values\n");
+        ERROR_PRINTF("You haven't enough values\n");
         return;
     }
     int value1 = stackPop (stk );
@@ -178,7 +192,7 @@ void subCommand(stack_t *stk)
 {
     if (stk->size < 2)
     {
-        printf("You haven't enough values\n");
+        ERROR_PRINTF("You haven't enough values\n");
         return;
     }
     int value1 = stackPop (stk);
@@ -191,14 +205,14 @@ void divCommand(stack_t *stk)
 {
     if (stk->size < 2)
     {
-        printf("You haven't enough values\n");
+        ERROR_PRINTF("You haven't enough values\n");
         return;
     }
     int value1 = stackPop (stk);
     int value2 = stackPop (stk);
     if  (value1 == 0)
     {
-        printf("Zero division\n");
+        ERROR_PRINTF("Zero division\n");
         return;
     }
     int div = value2 / value1;
@@ -207,5 +221,10 @@ void divCommand(stack_t *stk)
 
 void outCommand(stack_t *stk)
 {
-    printf("Last operation value = <%d>\n", stackTop(stk));
+    if (stk->size < 1)
+    {
+        ERROR_PRINTF("You haven't enough values\n");
+        return;
+    }
+    OPERATION_PRINTF("Last operation value = <%d>\n", stackTop(stk));
 }

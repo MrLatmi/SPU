@@ -2,19 +2,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <ctype.h>
 #include "fileReader.cpp"
+#include <./stack/stackWithCanary.cpp> //need?
 
 #define POISON_VALUE -13
 
-
+struct processor_t
+{
+    int instructionPointer;
+    char *processorBuffer;
+}
 enum commands
 {
-    PUSH = 1,
+    HLT,
+    PUSH,
     ADD,
     SUB,
     DIV,
     OUT,
-    HLT,
+    PUSHr,
 };
 
 int    getCommands      (char *readFileName, char *writeFileName);
@@ -44,7 +51,6 @@ int getCommands(char *readFileName, char *writeFileName)
         printf("Fail\n");
         return POISON_VALUE;
     }
-
     FILE *fileWrite = fopen(writeFileName, "w");
 
     if (fileWrite == NULL)
@@ -67,12 +73,18 @@ int getCommands(char *readFileName, char *writeFileName)
 
 void commandCompound(size_t lineCount, FILE* fileWrite, char **index)
 {
-    for (size_t i = 0; i < lineCount; i++)
-    {
-        int  value       = 0;
-        char command[5] = {};
+    int instructionPointer = lineCount;
+    char labels[20]        = 0;
 
-        int nScanned = sscanf(index[i], "%4s %d", command, &value);
+    for (size_t i = 0; i < instructionPointer; i++)
+    {
+        int     value      = 0;
+        char    command[5] = {};
+        int     label[20]  = {};
+        int     nScanned   = sscanf(index[i], "%4s %s", command, &value);
+        stack_t buffer     = {};
+        buffer             = stackInit(&stk);
+
 
         if (nScanned <= 0)
             continue;
@@ -84,7 +96,28 @@ void commandCompound(size_t lineCount, FILE* fileWrite, char **index)
                 printf("Line %zu: PUSH need a number\n", i + 1);
                 break;
             }
-            fprintf(fileWrite, "%d %d\n", PUSH, value);
+            if(isAlpha(value))
+            {
+                stackPush(buffer, PUSH);
+                stackPush(buffer, value);
+                fprintf(fileWrite, "%d %d\n", PUSH, value);
+            }
+            else if(strcmp(value, "ax"))
+            {
+                fprintf(fileWrite, "%d %d\n", PUSHr, value);
+            }
+            else if(strcmp(value, "bx"));
+            {
+
+            }
+            else if(strcmp(value, "cx"))
+            {
+
+            }
+            else if(strcmp(value, "dx"))
+            {
+
+            }
         }
         else if (strcmp(command, "ADD") == 0)
         {
@@ -93,6 +126,7 @@ void commandCompound(size_t lineCount, FILE* fileWrite, char **index)
                 printf("Line %zu: wrong %s usage. Command cannot exist argument\n", i + 1, command);
                 break;
             }
+            stackPush(buffer, ADD);
             fprintf(fileWrite, "%d\n", ADD);
         }
         else if (strcmp(command, "SUB") == 0)
@@ -102,6 +136,7 @@ void commandCompound(size_t lineCount, FILE* fileWrite, char **index)
                 printf("Line %zu: wrong %s usage. Command cannot exist argument\n", i + 1, command);
                 break;
             }
+            stackPush(buffer, SUB);
             fprintf(fileWrite, "%d\n", SUB);
         }
         else if (strcmp(command, "DIV") == 0)
@@ -111,6 +146,7 @@ void commandCompound(size_t lineCount, FILE* fileWrite, char **index)
                 printf("Line %zu: wrong %s usage. Command cannot exist argument\n", i + 1, command);
                 break;
             }
+            stackPush(buffer, DIV);
             fprintf(fileWrite, "%d\n", DIV);
         }
         else if (strcmp(command, "OUT") == 0)
@@ -120,6 +156,7 @@ void commandCompound(size_t lineCount, FILE* fileWrite, char **index)
                 printf("Line %zu: wrong %s usage. Command cannot exist argument\n", i + 1, command);
                 break;
             }
+            stackPush(buffer, OUT);
             fprintf(fileWrite, "%d\n", OUT);
         }
         else if (strcmp(command, "HLT") == 0)
@@ -129,7 +166,17 @@ void commandCompound(size_t lineCount, FILE* fileWrite, char **index)
                 printf("Line %zu: wrong %s usage. Command cannot exist argument\n", i + 1, command);
                 break;
             }
+            stackPush(buffer, HLT);
             fprintf(fileWrite, "%d\n", HLT);
+        }
+        else if(strcmp(command, ":"))
+        {
+             if(nScanned < 2)
+            {
+                printf("Line %zu: Label need a number\n", i + 1);\
+                break;
+            }
+            label[value] = instructionPointer;
         }
         else
         {

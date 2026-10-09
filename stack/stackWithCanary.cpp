@@ -207,12 +207,12 @@ void printStackConsole(const stack_t *stk ON_DEBUG(, debug_info_t debugInfo))
         return;
 
 
-    printf(" size = %zu, capacity = %zu", stk->size, stk->capacity);
+    printf(" size = %zu, capacity = %zu\n", stk->size, stk->capacity);
 
     printf("Elements:\n");
     for (size_t i = 0; i < stk->size; i++)
     {
-        printf("[%zu] = %d\n", i, stk->data[i]);
+        printf("\033[1;33m[%zu] = <%d>\033[0m\n", i, stk->data[i]);
     }
 }
 
