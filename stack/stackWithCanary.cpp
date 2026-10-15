@@ -1,30 +1,27 @@
 #include "stackHeader.h"
 
 
+//! @note Don't work declaration deleting
 
-void            canaryAdder         (stack_element_t *canaryData, size_t capacity);
-errors_t        canaryChecker       (const stack_t *const stk             ON_DEBUG(, debug_info_t debugInfo));
+static void            canaryAdder         (stack_element_t *canaryData, size_t capacity);
+static errors_t        canaryChecker       (const stack_t *const stk             ON_DEBUG(, debug_info_t debugInfo));
 
-long long       djb2_hash_stackStruc(const stack_t *const stk);
-long long       djb2_hash_stackData (const stack_t *const stk);
-errors_t        hashChecker         (      stack_t *stk                   ON_DEBUG(, debug_info_t debugInfo));
-void            changeCash          (stack_t *const stk);
+static long long       djb2_hash_stackStruc(const stack_t *const stk);
+static long long       djb2_hash_stackData (const stack_t *const stk);
+static errors_t        hashChecker         (      stack_t *stk                   ON_DEBUG(, debug_info_t debugInfo));
+static void            changeCash          (stack_t *const stk);
 
-errors_t        mainVerifier        (const stack_t *const stk             ON_DEBUG(, debug_info_t debugInfo));
-void            printStackConsole   (const stack_t *stk                   ON_DEBUG(, debug_info_t debugInfo));
-const char*     getErrorName        (errors_t err);
+static const char*     getErrorName        (errors_t err);
 
-bool            popRealloc          (stack_t *const stk);
-bool            pushRealloc         (stack_t *const stk);
-bool            changeMemoryUpStack (stack_t *const stk, size_t newCapacity);
-
+static bool            popRealloc          (stack_t *const stk);
+static bool            pushRealloc         (stack_t *const stk);
+static bool            changeMemoryUpStack (stack_t *const stk, size_t newCapacity);
 
 
-#ifdef STK_DEBUG
-void makeDebugLog(const stack_t *const stk, debug_info_t debugInfo, errors_t errCode)
+void makeDebugLog(const stack_t *const stk, char *fileName ON_DEBUG(, debug_info_t debugInfo, errors_t errCode))
 {
     FILE *file = nullptr;
-    if((file = fopen(debugInfo.fileName, "ab")) == NULL)
+    if((file = fopen(fileName, "ab")) == NULL)
     {
         printf("Cannot open file for debug\n");\
         assert(NULL);
@@ -34,14 +31,21 @@ void makeDebugLog(const stack_t *const stk, debug_info_t debugInfo, errors_t err
     if (stk == NULL)
     {
 
-        fprintf(file, "Stack wasn't initialised. Created by %s() at %s:%d\n Error code: %d - %s\n",
+        fprintf(file, "Stack wasn't initialised. ");
+#ifdef STK_DEBUG
+        fprintf(file, "Created by %s() at %s:%d\n Error code: %d - %s\n",
                 debugInfo.func, debugInfo.file, debugInfo.line, errCode, getErrorName(errCode));
+#endif
+
         fclose(file);
         return;
     }
+    fprintf(file, "Stack structure:\n");
 
+#ifdef STK_DEBUG
     fprintf(file, "created by %s() at %s:%d\n Error code: %d - %s\n Size = <%zu>\n Capacity = <%zu>\n data[%p]:\n",
             debugInfo.func, debugInfo.file, debugInfo.line, errCode, getErrorName(errCode), stk->size, stk->capacity, (void*)stk->data);
+#endif
 
     if(stk->data != 0)
     {
@@ -61,11 +65,10 @@ void makeDebugLog(const stack_t *const stk, debug_info_t debugInfo, errors_t err
     fprintf(file, "\n\n\n\n\n");
     fclose(file);
 }
-#endif
 
 
 
-long long djb2_hash_stackData(const stack_t *const stk)
+static long long djb2_hash_stackData(const stack_t *const stk)
 {
     long long hash = 5381;
     for(size_t i = 0; i < stk->capacity + CANARY_COUNT;i++)
@@ -74,7 +77,7 @@ long long djb2_hash_stackData(const stack_t *const stk)
     return hash;
 }
 
-long long djb2_hash_stackStruc(const stack_t *const stk)
+static long long djb2_hash_stackStruc(const stack_t *const stk)
 {
     long long hash = 5381;
     const unsigned char *bytes = (const unsigned char*) stk;
@@ -86,7 +89,7 @@ long long djb2_hash_stackStruc(const stack_t *const stk)
 }
 
 
-errors_t hashChecker(stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
+static errors_t hashChecker(stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
 {
     long long hashDataTemp   = stk->hashData;
     long long hashStructTemp = stk->hashStruct;
@@ -108,7 +111,7 @@ errors_t hashChecker(stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
     return noProblem;
 }
 
-void changeCash(stack_t *const stk)
+static void changeCash(stack_t *const stk)
 {
     stk->hashData        = 0;
     stk->hashStruct      = 0;
@@ -119,7 +122,7 @@ void changeCash(stack_t *const stk)
     stk->hashStruct      = hashStruct;
 }
 
-void canaryAdder(stack_element_t *canaryData, size_t capacity)
+static void canaryAdder(stack_element_t *canaryData, size_t capacity)
 {
     canaryData[0]            = CANARY_LEFT;
     canaryData[capacity + 1] = CANARY_RIGHT;
@@ -219,7 +222,7 @@ void printStackConsole(const stack_t *stk ON_DEBUG(, debug_info_t debugInfo))
 
 
 
-errors_t canaryChecker(const stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
+static errors_t canaryChecker(const stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
 {
     errors_t verifierErr = mainVerifier(stk ON_DEBUG(, debugInfo));
     if (verifierErr != noProblem)
@@ -358,7 +361,7 @@ stack_element_t stackPop(stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
 
 
 
-bool popRealloc(stack_t *const stk)
+static bool popRealloc(stack_t *const stk)
 {
     if (stk->capacity > 4 && stk->size == stk->capacity/4)
     {
@@ -385,7 +388,7 @@ bool popRealloc(stack_t *const stk)
 }
 
 
-bool pushRealloc(stack_t *const stk)
+static bool pushRealloc(stack_t *const stk)
 {
     if (stk->size == stk->capacity)
     {
@@ -425,7 +428,7 @@ stack_element_t stackTop(stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
     return stk->data[stk->size - 1];
 }
 
-bool changeMemoryUpStack(stack_t *const stk, size_t newCapacity)
+static bool changeMemoryUpStack(stack_t *const stk, size_t newCapacity)
 {
     if(newCapacity < stk->capacity)
         return false;
@@ -452,7 +455,7 @@ bool changeMemoryUpStack(stack_t *const stk, size_t newCapacity)
     return true;
 }
 
-const char* getErrorName(errors_t err)
+static const char* getErrorName(errors_t err)
 {
     switch(err)
     {

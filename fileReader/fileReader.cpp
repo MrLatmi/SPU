@@ -1,5 +1,6 @@
-#define POISON_VALUE_READ -13
+#include <sys\stat.h>
 
+#define POISON_VALUE_READ -13
 
 struct textInfo
 {

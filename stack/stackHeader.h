@@ -72,13 +72,18 @@ struct stack_t
 };
 
 
+//TODO: makeDebugLog without STK_DEBUG
 
-#ifdef STK_DEBUG
-void            makeDebugLog        (const stack_t *stk, debug_info_t debugInfo, errors_t errCode);
-#endif
+
+void            makeDebugLog        (const stack_t *stk, char *fileName   ON_DEBUG(, debug_info_t debugInfo, errors_t errCode));
+
+errors_t        mainVerifier        (const stack_t *const stk             ON_DEBUG(, debug_info_t debugInfo));
 
 void            stackInit           (stack_t *stk, size_t capacity        ON_DEBUG(, debug_info_t debugInfo));
 void            stackDestroy        (stack_t *stk                         ON_DEBUG(, debug_info_t debugInfo));
 void            stackPush           (stack_t *stk, stack_element_t value  ON_DEBUG(, debug_info_t debugInfo));
 stack_element_t stackPop            (stack_t *stk                         ON_DEBUG(, debug_info_t debugInfo));
 stack_element_t stackTop            (stack_t *const stk                   ON_DEBUG(, debug_info_t debugInfo));
+
+void            printStackConsole   (const stack_t *stk                   ON_DEBUG(, debug_info_t debugInfo));
+

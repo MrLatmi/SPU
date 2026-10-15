@@ -3,35 +3,16 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "fileReader.cpp"
+#include "..\header.h"
 
 #define POISON_VALUE -13
 
-enum commands
-{
-    PUSH = 1,
-    ADD,
-    SUB,
-    DIV,
-    OUT,
-    HLT,
-};
 
 
 int    getCommands      (const char *readFileName, const char *writeFileName);
 void   commandCompound  (size_t lineCount, FILE* fileWrite, char **index);
 
 
-
-int main(int argc, char *argv[])
-{
-    if  (argc != 3)
-    {
-        printf("Wrong argument count\n");
-        return 0;
-    }
-    getCommands(argv[1], argv[2]);
-    return 0;
-}
 
 int getCommands(const char *const readFileName, const char *const writeFileName)
 {
