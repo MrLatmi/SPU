@@ -1,4 +1,6 @@
-#include <sys\stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 
 #define POISON_VALUE_READ -13
 
@@ -9,25 +11,36 @@ struct textInfo
     size_t  linesCount;
 };
 
+int    getText          (textInfo *const info, FILE* file, const char* fileName, int (*CompareFunc)(char symbol));
+int    readFromFile     (textInfo *const info, FILE* file);
+int    getElementsCount (const char text[], const size_t symbolCount, int (*CompareFunc)(char symbol));
+int    makeIndexArr     (const textInfo *const info, char *index[], int (*CompareFunc)(char symbol));
+char **getIndex         (FILE* file, const char* fileName, textInfo *info,  int (*CompareFunc)(char symbol));
 
-int    getText          (textInfo *const info, const char fileName[]);
-int    readFromFile     (textInfo *const info, FILE *const file);
-int    getLinesCount    (char text[], const int symbolCount);
-int    makeIndexArr     (const textInfo *const info, char *index[]);
-char **getIndex         (const char *readFileName, textInfo *info);
+int    lineCompare      (char symbol);
+int    wordCompare      (char symbol);
 
 
-int getLinesCount(char text[], const int symbolCount)
+int getElementsCount(const char text[], const size_t symbolCount, int (*CompareFunc)(char symbol))
 {
-    int lineCount = 0;
-    for(int i = 0; i < symbolCount; i++)
-    {
-        if(text[i] == '\n')
-            lineCount++;
+    int count = 0;
+    int inToken = 0;
 
+    for (size_t i = 0; i < symbolCount; i++)
+    {
+        if (CompareFunc(text[i]))
+        {
+            inToken = 0;
+        }
+        else if (!inToken)
+        {
+            inToken = 1;
+            count++;
+        }
     }
-    return lineCount;
+    return count;
 }
+
 
 
 int readFromFile(textInfo *const info, FILE *const file)
@@ -45,12 +58,12 @@ int readFromFile(textInfo *const info, FILE *const file)
 }
 
 
-int getText(textInfo *const info, const char fileName[])
+
+int getText(textInfo *const info, FILE* file, const char* fileName, int (*CompareFunc)(char symbol))
 {
-    FILE *file = fopen(fileName, "rb");
     if (file == NULL)
     {
-        printf("Cannot open file %s\n", fileName);
+        printf("Cannot open file\n");
         return POISON_VALUE_READ;
     }
 
@@ -64,29 +77,43 @@ int getText(textInfo *const info, const char fileName[])
         return POISON_VALUE_READ;
     }
 
-    info->linesCount = (size_t) getLinesCount(info->buffer, (int) info->symbolCount) + 1;
-    fclose(file);
+    info->linesCount = (size_t) getElementsCount(info->buffer, info->symbolCount, CompareFunc);
     return 1;
 }
 
 
-int makeIndexArr(const textInfo *const info, char *index[])
+
+int makeIndexArr(const textInfo *const info, char *index[], int (*CompareFunc)(char symbol))
 {
-    if (info == NULL || info->buffer == NULL)
+    if (info == NULL || info->buffer == NULL || index == NULL)
     {
-        printf("Cannot open file\n");
+        printf("Invalid arguments\n");
         return POISON_VALUE_READ;
     }
 
-    size_t nLines = 0;
-    index[nLines++] = &(info->buffer[0]);
+    size_t nElements = 0;
+    int inSpace = 0;
+
+    if (info->symbolCount > 0 && !CompareFunc(info->buffer[0]))
+    {
+        index[nElements++] = &(info->buffer[0]);
+        inSpace = 1;
+    }
 
     for (size_t i = 0; i < info->symbolCount; i++)
     {
-        if (info->buffer[i] == '\n')
+        if (CompareFunc(info->buffer[i]))
         {
             info->buffer[i] = '\0';
-            index[nLines++] = &(info->buffer[i + 1]);
+            inSpace = 0;
+        }
+        else
+        {
+            if (!inSpace)
+            {
+                index[nElements++] = &(info->buffer[i]);
+                inSpace = 1;
+            }
         }
     }
 
@@ -94,10 +121,21 @@ int makeIndexArr(const textInfo *const info, char *index[])
 }
 
 
-char **getIndex(const char *const readFileName, textInfo *const info)
-{
 
-    if (getText(info, readFileName) == POISON_VALUE_READ)
+int lineCompare(char symbol)
+{
+    return (symbol == '\n');
+}
+
+int wordCompare(char symbol)
+{
+    return (symbol == '\n' || symbol == ' ' || symbol == '\r' || symbol == '\t');
+}
+
+
+char **getIndex(FILE* file, const char* fileName, textInfo *const info, int (*CompareFunc)(char symbol))
+{
+    if (getText(info, file, fileName, CompareFunc) == POISON_VALUE_READ)
         return nullptr;
 
     char **index = (char **) calloc(info->linesCount, sizeof(char *));
@@ -109,13 +147,12 @@ char **getIndex(const char *const readFileName, textInfo *const info)
         return nullptr;
     }
 
-    if (makeIndexArr(info, index) == POISON_VALUE_READ)
+    if (makeIndexArr(info, index, CompareFunc) == POISON_VALUE_READ)
     {
         free(index);
         free(info->buffer);
         return nullptr;
     }
-
 
     return index;
 }
