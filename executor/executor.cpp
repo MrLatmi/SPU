@@ -223,7 +223,7 @@ void popRCommand(stack_t *const stk, int reg, processor *proc)
 }
 
 
-//Функцяи которая воззвращает функцию. Если команда jjmp, тогда п
+
 void subCommand(stack_t *const stk)
 {
     if (stk->size < 2)
