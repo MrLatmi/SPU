@@ -5,6 +5,9 @@ int main(int argc, char *argv[])
     stack_t stk = {};
     stackInit (&stk, 1 );
 
+    stack_t retStk = {};
+    stackInit (&retStk, 1 );
+
     processor proc = {};
 
     if (argc < 2)
@@ -20,7 +23,7 @@ int main(int argc, char *argv[])
         printf("Cannot open file <%s>\n", argv[1]);
         return 0;
     }
-    commandFromFileExecutor(&stk, file, argv[1], &proc);
+    commandFromFileExecutor(&stk, &retStk, file, &proc);
     fclose(file);
     return 0;
 }

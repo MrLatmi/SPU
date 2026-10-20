@@ -1,4 +1,5 @@
 #undef OUT
+#undef IN
 
 enum commands
 {
@@ -16,6 +17,10 @@ enum commands
     JE,
     PUSHr,
     POPr,
+    CALL,
+    RET,
+    IN,
+    MUL,
 };
 
 enum Registers

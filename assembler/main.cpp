@@ -2,24 +2,40 @@
 
 int main(int argc, char *argv[])
 {
-    if  (argc != 3)
+    if (argc < 4)
     {
-        printf("Wrong argument count\n");
+        printf("Usage: asm <source> <text output> <binary output>\n");
         return 0;
     }
-    FILE* fileWrite = fopen(argv[1], "wb");
-    FILE* fileRead  = fopen(argv[1], "rb");
 
-    if(fileWrite == NULL)
+    FILE* fileRead = fopen(argv[1], "rb");
+    FILE* fileText   = fopen(argv[2], "w");
+    FILE* fileBinary = fopen(argv[3], "wb");
+
+
+    if (fileRead == NULL)
     {
-        printf("Can not open write file <%s>\n", argv[2]);
+        printf("Cannot open read file <%s>\n", argv[1]);
         return 0;
     }
-    if(fileRead == NULL)
+
+    if (fileText == NULL)
     {
-        printf("Can not open asm file <%s>\n", argv[1]);
+        printf("Cannot open text file <%s>\n", argv[2]);
         return 0;
     }
-    getCommands(argv[1], fileRead, fileWrite);
+
+    if (fileBinary == NULL)
+    {
+        printf("Cannot open binary file <%s>\n", argv[2]);
+        return 0;
+    }
+
+    getCommands(argv[1], fileRead, fileText, fileBinary);
+
+    fclose(fileRead);
+    fclose(fileText);
+    fclose(fileBinary);
+
     return 0;
 }
