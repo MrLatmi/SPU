@@ -1,5 +1,17 @@
+#ifndef _MAIN_HEADER_
+#define _MAIN_HEADER_
+
+
 #undef OUT
 #undef IN
+
+
+#define OPCODE_MASK 0x1F
+enum flags{
+    FLAG_NUM = 1 << 5,
+    FLAG_REG = 1 << 6,
+    FLAG_MEM = 1 << 7,
+};
 
 enum commands
 {
@@ -30,3 +42,5 @@ enum Registers
     CX,
     DX,
 };
+
+#endif

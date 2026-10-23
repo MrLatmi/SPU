@@ -5,56 +5,13 @@
 #include <ctype.h>
 #include "fileReader.cpp"
 #include "../header.h"
-
+#include "header.h"
 #define POISON_VALUE -13
 #define LABELS_COUNT 10
 
 
-#ifndef OPCODE_MASK
-#define OPCODE_MASK 0x1F
-enum { FLAG_NUM = 1 << 5, FLAG_REG = 1 << 6, FLAG_MEM = 1 << 7 };
-#endif
 
 
-struct output
-{
-    FILE *text;
-    FILE *binary;
-};
-
-struct operand
-{
-    bool mem;
-    bool hasReg;
-    bool hasNum;
-    int  reg;
-    int  value;
-};
-
-//TODO: header
-//TODO: try to do code generation
-
-int    getCommands      (char *readFileName, FILE *fileRead, FILE *fileText, FILE *fileBinary);
-bool   commandCompound  (size_t lineCount, output *out, char **index);
-
-void   createLabel      (int *pointerLabels);
-
-bool   firstEntrance    (size_t lineCount, char **index, int *pointerLabels);
-bool   secondEntrance   (size_t lineCount, output *out, char **index, int *pointerLabels);
-
-bool   writeWords       (output *out, const int *words, int n);
-
-bool   parseOperand     (const char *args, operand *a);
-int    operandWords     (const operand *a);
-bool   writeOperand     (output *out, int opCode, const operand *a);
-
-bool   commandPush      (const char *command, const char *args, size_t lineNum, output *out);
-bool   commandPop       (const char *command, const char *args, size_t lineNum, output *out);
-bool   commandJump      (int opCode, const char *args, size_t lineNum, const int *pointerLabels, output *out);
-
-int    registerCode     (const char *name);
-bool   jumpOpCode       (const char *command, int *opCode);
-bool   simpleOpCode     (const char *command, int *opCode);
 
 
 int getCommands(char *readFileName, FILE *fileRead, FILE *fileText, FILE *fileBinary)

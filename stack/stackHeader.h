@@ -72,9 +72,6 @@ struct stack_t
 };
 
 
-//TODO: makeDebugLog without STK_DEBUG
-
-
 void            makeDebugLog        (const stack_t *stk, char *fileName   ON_DEBUG(, debug_info_t debugInfo, errors_t errCode));
 
 errors_t        mainVerifier        (const stack_t *const stk             ON_DEBUG(, debug_info_t debugInfo));

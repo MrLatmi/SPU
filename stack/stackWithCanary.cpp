@@ -1,21 +1,40 @@
 #include "stackHeader.h"
 
 
-//! @note Don't work declaration deleting
-//TODO: func in normal queue
-static void            canaryAdder         (stack_element_t *canaryData, size_t capacity);
-static errors_t        canaryChecker       (const stack_t *const stk             ON_DEBUG(, debug_info_t debugInfo));
 
-static long long       djb2_hash_stackStruc(const stack_t *const stk);
-static long long       djb2_hash_stackData (const stack_t *const stk);
-static errors_t        hashChecker         (      stack_t *stk                   ON_DEBUG(, debug_info_t debugInfo));
-static void            changeCash          (stack_t *const stk);
+static const char* getErrorName(errors_t err)
+{
+    switch(err)
+    {
+        case noProblem:
+            return "no problem";
+        case callocError:
+            return "calloc problem";
+        case capacityProblem:
+            return "capacity problem";
+        case sizeProblem:
+            return "size problem";
+        case alreadyInit:
+            return "already init problem";
+        case initProblem:
+            return "initialize problem";
+        case nullProblem:
+            return "null pointer problem";
+        case canaryLeftDead:
+            return "left canary problem";
+        case canaryRightDead:
+            return "right canary problem";
+        case canaryUpDead:
+            return "upper canary in stack problem";
+        case canaryDownDead:
+            return "downer canary in stack problem";
+        case hashError:
+            return "hash problem";
+        default:
+            return "undefined problem";
 
-static const char*     getErrorName        (errors_t err);
-
-static bool            popRealloc          (stack_t *const stk);
-static bool            pushRealloc         (stack_t *const stk);
-static bool            changeMemoryUpStack (stack_t *const stk, size_t newCapacity);
+    }
+}
 
 
 void makeDebugLog(const stack_t *const stk, char *fileName ON_DEBUG(, debug_info_t debugInfo, errors_t errCode))
@@ -129,6 +148,109 @@ static void canaryAdder(stack_element_t *canaryData, size_t capacity)
 }
 
 
+
+
+errors_t mainVerifier(const stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
+{
+    if(stk == NULL)
+    {
+        fprintf(stderr, "Function called with NULL pointer. Check debug file\n");
+
+    #ifdef STK_DEBUG
+        makeDebugLog(NULL, debugInfo, nullProblem);
+    #endif
+
+        return nullProblem;
+    }
+
+    if (stk->canaryData == NULL || stk->data == NULL)
+    {
+        fprintf(stderr, "Memory error\n");
+
+    #ifdef STK_DEBUG
+        makeDebugLog(stk, debugInfo, callocError);
+    #endif
+        return callocError;
+    }
+
+
+    if (stk->capacity > CAPACITY_MAX)
+    {
+        fprintf(stderr, "Capacity error\n");
+
+    #ifdef STK_DEBUG
+        makeDebugLog(stk, debugInfo, capacityProblem);
+    #endif
+
+        return capacityProblem;
+    }
+
+
+    if (stk->size > stk->capacity || stk->size > CAPACITY_MAX)
+    {
+        fprintf(stderr, "Size error\n");
+
+    #ifdef STK_DEBUG
+        makeDebugLog(stk, debugInfo, sizeProblem);
+    #endif
+
+        return sizeProblem;
+    }
+
+    return noProblem;
+}
+
+static errors_t canaryChecker(const stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
+{
+    errors_t verifierErr = mainVerifier(stk ON_DEBUG(, debugInfo));
+    if (verifierErr != noProblem)
+        return verifierErr;
+
+    if (stk->canaryUp != CANARY_STUCT_UP)
+    {
+        fprintf(stderr, "Your UP canary dead:(. Check memory\n");
+
+    #ifdef STK_DEBUG
+        makeDebugLog(stk, debugInfo, canaryUpDead);
+    #endif
+
+        return canaryUpDead;
+    }
+
+    if (stk->canaryDown != CANARY_STUCT_DOWN)
+    {
+        fprintf(stderr, "Your DOWN canary dead:(. Check memory\n");
+
+    #ifdef STK_DEBUG
+        makeDebugLog(stk, debugInfo, canaryDownDead);
+    #endif
+
+        return canaryDownDead;
+    }
+
+    if (stk->canaryData[0] != (stack_element_t) CANARY_LEFT)
+    {
+        fprintf(stderr, "Your LEFT canary dead:(. Check memory\n");
+
+    #ifdef STK_DEBUG
+        makeDebugLog(stk, debugInfo, canaryLeftDead);
+    #endif
+
+        return canaryLeftDead;
+    }
+    if (stk->canaryData[stk->capacity+1] != (stack_element_t) CANARY_RIGHT)
+    {
+        fprintf(stderr, "Your RIGHT canary dead:(. Check memory\n");
+
+    #ifdef STK_DEBUG
+        makeDebugLog(stk, debugInfo, canaryRightDead);
+    #endif
+
+        return canaryRightDead;
+    }
+    return noProblem;
+}
+
 void stackInit(stack_t *const stk, size_t capacity ON_DEBUG(, debug_info_t debugInfo))
 {
     if (!stk || capacity == 0 || capacity > CAPACITY_MAX)
@@ -157,6 +279,81 @@ void stackInit(stack_t *const stk, size_t capacity ON_DEBUG(, debug_info_t debug
 
     if (mainVerifier(stk ON_DEBUG(, debugInfo)) != noProblem)
         fprintf(stderr, "Critical error. Check debug file\n");
+}
+
+
+static bool changeMemoryUpStack(stack_t *const stk, size_t newCapacity)
+{
+    if(newCapacity < stk->capacity)
+        return false;
+
+    if(newCapacity > CAPACITY_MAX)
+        return false;
+
+    stack_element_t *temp = (stack_element_t*) realloc (stk->canaryData, (newCapacity +CANARY_COUNT )*sizeof(stack_element_t));
+
+    if (temp == NULL)
+        return false;
+
+
+    for (size_t i = stk->capacity; i < newCapacity; i++)
+    {
+        temp[i + 1] = POISON_VALUE;
+    }
+    canaryAdder(temp, newCapacity);
+    stk->canaryData = temp;
+    stk->data = &stk->canaryData[1];
+    stk->capacity = newCapacity;
+
+    changeCash(stk);
+    return true;
+}
+
+
+static bool pushRealloc(stack_t *const stk)
+{
+    if (stk->size == stk->capacity)
+    {
+        size_t newCapacity = stk->capacity ? stk->capacity * 2 : 1;
+        if (newCapacity > CAPACITY_MAX)
+        {
+            fprintf(stderr, "Capacity limit\n");
+            return false;
+        }
+
+        if (!changeMemoryUpStack(stk, newCapacity))
+        {
+            printf("Memory getting problem\n");
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool popRealloc(stack_t *const stk)
+{
+    if (stk->capacity > 4 && stk->size == stk->capacity/4)
+    {
+        size_t newCapacity = (stk->capacity / 4);
+
+
+        stack_element_t* temp = (stack_element_t*) realloc(stk->canaryData, (newCapacity + CANARY_COUNT) * sizeof(stack_element_t));
+
+        if(temp == NULL)
+        {
+            fprintf(stderr, "Error with memory getting\n");
+            return false;
+        }
+
+        canaryAdder(temp, newCapacity);
+
+        stk->canaryData  = temp;
+        stk->data = &stk->canaryData[1];
+        stk->capacity = newCapacity;
+
+        changeCash(stk);
+    }
+    return true;
 }
 
 
@@ -221,117 +418,6 @@ void printStackConsole(const stack_t *stk ON_DEBUG(, debug_info_t debugInfo))
 
 
 
-
-static errors_t canaryChecker(const stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
-{
-    errors_t verifierErr = mainVerifier(stk ON_DEBUG(, debugInfo));
-    if (verifierErr != noProblem)
-        return verifierErr;
-
-    if (stk->canaryUp != CANARY_STUCT_UP)
-    {
-        fprintf(stderr, "Your UP canary dead:(. Check memory\n");
-
-    #ifdef STK_DEBUG
-        makeDebugLog(stk, debugInfo, canaryUpDead);
-    #endif
-
-        return canaryUpDead;
-    }
-
-    if (stk->canaryDown != CANARY_STUCT_DOWN)
-    {
-        fprintf(stderr, "Your DOWN canary dead:(. Check memory\n");
-
-    #ifdef STK_DEBUG
-        makeDebugLog(stk, debugInfo, canaryDownDead);
-    #endif
-
-        return canaryDownDead;
-    }
-
-    if (stk->canaryData[0] != (stack_element_t) CANARY_LEFT)
-    {
-        fprintf(stderr, "Your LEFT canary dead:(. Check memory\n");
-
-    #ifdef STK_DEBUG
-        makeDebugLog(stk, debugInfo, canaryLeftDead);
-    #endif
-
-        return canaryLeftDead;
-    }
-    if (stk->canaryData[stk->capacity+1] != (stack_element_t) CANARY_RIGHT)
-    {
-        fprintf(stderr, "Your RIGHT canary dead:(. Check memory\n");
-
-    #ifdef STK_DEBUG
-        makeDebugLog(stk, debugInfo, canaryRightDead);
-    #endif
-
-        return canaryRightDead;
-    }
-    return noProblem;
-}
-
-
-
-
-
-errors_t mainVerifier(const stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
-{
-    if(stk == NULL)
-    {
-        fprintf(stderr, "Function called with NULL pointer. Check debug file\n");
-
-    #ifdef STK_DEBUG
-        makeDebugLog(NULL, debugInfo, nullProblem);
-    #endif
-
-        return nullProblem;
-    }
-
-    if (stk->canaryData == NULL || stk->data == NULL)
-    {
-        fprintf(stderr, "Memory error\n");
-
-    #ifdef STK_DEBUG
-        makeDebugLog(stk, debugInfo, callocError);
-    #endif
-        return callocError;
-    }
-
-
-    if (stk->capacity > CAPACITY_MAX)
-    {
-        fprintf(stderr, "Capacity error\n");
-
-    #ifdef STK_DEBUG
-        makeDebugLog(stk, debugInfo, capacityProblem);
-    #endif
-
-        return capacityProblem;
-    }
-
-
-    if (stk->size > stk->capacity || stk->size > CAPACITY_MAX)
-    {
-        fprintf(stderr, "Size error\n");
-
-    #ifdef STK_DEBUG
-        makeDebugLog(stk, debugInfo, sizeProblem);
-    #endif
-
-        return sizeProblem;
-    }
-
-    return noProblem;
-}
-
-
-
-
-
-
 stack_element_t stackPop(stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
 {
 
@@ -361,52 +447,7 @@ stack_element_t stackPop(stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
 
 
 
-static bool popRealloc(stack_t *const stk)
-{
-    if (stk->capacity > 4 && stk->size == stk->capacity/4)
-    {
-        size_t newCapacity = (stk->capacity / 4);
 
-
-        stack_element_t* temp = (stack_element_t*) realloc(stk->canaryData, (newCapacity + CANARY_COUNT) * sizeof(stack_element_t));
-
-        if(temp == NULL)
-        {
-            fprintf(stderr, "Error with memory getting\n");
-            return false;
-        }
-
-        canaryAdder(temp, newCapacity);
-
-        stk->canaryData  = temp;
-        stk->data = &stk->canaryData[1];
-        stk->capacity = newCapacity;
-
-        changeCash(stk);
-    }
-    return true;
-}
-
-
-static bool pushRealloc(stack_t *const stk)
-{
-    if (stk->size == stk->capacity)
-    {
-        size_t newCapacity = stk->capacity ? stk->capacity * 2 : 1;
-        if (newCapacity > CAPACITY_MAX)
-        {
-            fprintf(stderr, "Capacity limit\n");
-            return false;
-        }
-
-        if (!changeMemoryUpStack(stk, newCapacity))
-        {
-            printf("Memory getting problem\n");
-            return false;
-        }
-    }
-    return true;
-}
 
 stack_element_t stackTop(stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
 {
@@ -428,63 +469,5 @@ stack_element_t stackTop(stack_t *const stk ON_DEBUG(, debug_info_t debugInfo))
     return stk->data[stk->size - 1];
 }
 
-static bool changeMemoryUpStack(stack_t *const stk, size_t newCapacity)
-{
-    if(newCapacity < stk->capacity)
-        return false;
-
-    if(newCapacity > CAPACITY_MAX)
-        return false;
-
-    stack_element_t *temp = (stack_element_t*) realloc (stk->canaryData, (newCapacity +CANARY_COUNT )*sizeof(stack_element_t));
-
-    if (temp == NULL)
-        return false;
 
 
-    for (size_t i = stk->capacity; i < newCapacity; i++)
-    {
-        temp[i + 1] = POISON_VALUE;
-    }
-    canaryAdder(temp, newCapacity);
-    stk->canaryData = temp;
-    stk->data = &stk->canaryData[1];
-    stk->capacity = newCapacity;
-
-    changeCash(stk);
-    return true;
-}
-
-static const char* getErrorName(errors_t err)
-{
-    switch(err)
-    {
-        case noProblem:
-            return "no problem";
-        case callocError:
-            return "calloc problem";
-        case capacityProblem:
-            return "capacity problem";
-        case sizeProblem:
-            return "size problem";
-        case alreadyInit:
-            return "already init problem";
-        case initProblem:
-            return "initialize problem";
-        case nullProblem:
-            return "null pointer problem";
-        case canaryLeftDead:
-            return "left canary problem";
-        case canaryRightDead:
-            return "right canary problem";
-        case canaryUpDead:
-            return "upper canary in stack problem";
-        case canaryDownDead:
-            return "downer canary in stack problem";
-        case hashError:
-            return "hash problem";
-        default:
-            return "undefined problem";
-
-    }
-}
