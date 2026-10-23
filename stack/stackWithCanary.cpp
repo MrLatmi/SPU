@@ -2,7 +2,7 @@
 
 
 //! @note Don't work declaration deleting
-
+//TODO: func in normal queue
 static void            canaryAdder         (stack_element_t *canaryData, size_t capacity);
 static errors_t        canaryChecker       (const stack_t *const stk             ON_DEBUG(, debug_info_t debugInfo));
 

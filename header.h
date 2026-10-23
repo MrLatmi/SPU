@@ -15,12 +15,12 @@ enum commands
     JB,
     JBE,
     JE,
-    PUSHr,
-    POPr,
+    POP,
     CALL,
     RET,
     IN,
     MUL,
+    DRAW,
 };
 
 enum Registers

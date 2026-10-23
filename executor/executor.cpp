@@ -1,16 +1,34 @@
 #include <TXlib.h>
 #include "stackWithCanary.cpp"
 #include "fileReader.cpp"
-#include "..\header.h"
+#include "../header.h"
 #define MAKE_DEBUG(arg) ON_DEBUG(, debug_info_t{ __FILE__, __func__, __LINE__, arg })
 
+#ifndef OPCODE_MASK
+#define OPCODE_MASK 0x1F
+
+enum { FLAG_NUM = 1 << 5, FLAG_REG = 1 << 6, FLAG_MEM = 1 << 7 };
+#endif
+
+#define REG_COUNT 4
+
+
+
+#define SCREEN_WIDTH  32
+
+
+
+#define SCREEN_HEIGHT 32
+
+#define RAM_SIZE (SCREEN_WIDTH * SCREEN_HEIGHT)
 
 #define ERROR_PRINTF(format, ...) printf("\033[1;31m" format " %s, %d \033[0m\n" __VA_OPT__(,) __VA_ARGS__, __FILE__, __LINE__)
 #define GREEN_PRINTF(format, ...) printf("\033[1;32m" format "\033[0m\n" __VA_OPT__(,) __VA_ARGS__)
 
 struct processor
 {
-    int reg[4];
+    int reg[REG_COUNT];
+    int ram[RAM_SIZE];
     int instructionPointer;
 };
 
@@ -19,6 +37,7 @@ struct byteCode
     int    *words;
     size_t  size;
 };
+
 
 void commandFromFileExecutor    (stack_t *const stk, stack_t *const retStk, FILE* file, processor *proc);
 
@@ -34,6 +53,7 @@ void divCommand                 (stack_t *stk);
 void mulCommand                 (stack_t *stk);
 void outCommand                 (stack_t *stk);
 void inCommand                  (stack_t *stk);
+void drawCommand                (const processor *proc);
 bool jaCommand                  (stack_t *stk);
 bool jaeCommand                 (stack_t *stk);
 bool jbCommand                  (stack_t *stk);
@@ -44,12 +64,9 @@ bool callCommand                (stack_t *retStk, processor *proc, byteCode *cod
 bool retCommand                 (stack_t *retStk, processor *proc);
 
 bool readArgument               (processor *proc, byteCode *code, int *value, const char *name);
-void pushHandler                (stack_t *stk, processor *proc, byteCode *code);
-void pushRHandler               (stack_t *stk, processor *proc, byteCode *code);
-void popRHandler                (stack_t *stk, processor *proc, byteCode *code);
+void pushHandler                (stack_t *stk, processor *proc, byteCode *code, int flags);
+void popHandler                 (stack_t *stk, processor *proc, byteCode *code, int flags);
 
-void pushRCommand               (stack_t *stk, int value, processor *proc);
-void popRCommand                (stack_t *const stk, int reg, processor *proc);
 
 void commandFromFileExecutor(stack_t *const stk, stack_t *const retStk, FILE* file, processor *proc)
 {
@@ -57,16 +74,18 @@ void commandFromFileExecutor(stack_t *const stk, stack_t *const retStk, FILE* fi
     if (!loadByteCode(file, &code))
         return;
 
-    while((size_t)proc->instructionPointer < code.size && proc->instructionPointer >= 0)
+    while ((size_t)proc->instructionPointer < code.size && proc->instructionPointer >= 0)
     {
-        int command = code.words[proc->instructionPointer];
+        int word  = code.words[proc->instructionPointer];
+        int op    = word & OPCODE_MASK;
+        int flags = word & ~OPCODE_MASK;
 
         bool jumped = false;
 
-        switch (command)
+        switch (op)
         {
             case JMP: case JA: case JAE: case JB: case JBE: case JE:
-                jumped = anyJMPCommand(stk, proc, &code, command);
+                jumped = anyJMPCommand(stk, proc, &code, op);
                 break;
             case CALL:
                 jumped = callCommand(retStk, proc, &code);
@@ -75,13 +94,10 @@ void commandFromFileExecutor(stack_t *const stk, stack_t *const retStk, FILE* fi
                 jumped = retCommand(retStk, proc);
                 break;
             case PUSH:
-                pushHandler(stk, proc, &code);
+                pushHandler(stk, proc, &code, flags);
                 break;
-            case PUSHr:
-                pushRHandler(stk, proc, &code);
-                break;
-            case POPr:
-                popRHandler(stk, proc, &code);
+            case POP:
+                popHandler(stk, proc, &code, flags);
                 break;
             case ADD:
                 addCommand(stk);
@@ -106,6 +122,9 @@ void commandFromFileExecutor(stack_t *const stk, stack_t *const retStk, FILE* fi
                 inCommand(stk);
                 printStackConsole(stk);
                 break;
+            case DRAW:
+                drawCommand(proc);
+                break;
             case HLT:
                 printStackConsole(stk);
                 GREEN_PRINTF("Program finished\n");
@@ -114,10 +133,9 @@ void commandFromFileExecutor(stack_t *const stk, stack_t *const retStk, FILE* fi
                 return;
 
             default:
-                ERROR_PRINTF("Unknown command %d at code %d ", command, proc->instructionPointer);
+                ERROR_PRINTF("Unknown command %d at code %d ", op, proc->instructionPointer);
                 break;
         }
-
 
         if (!jumped)
             proc->instructionPointer++;
@@ -159,19 +177,18 @@ bool loadByteCode(FILE* file, byteCode *code)
 }
 
 
-
-
 int bufferChecker()
 {
     int symbol           = 0;
     bool hasAnotherArgue = false;
-    while((symbol = getchar()) != '\n' && symbol != EOF)
+    while ((symbol = getchar()) != '\n' && symbol != EOF)
     {
-        if(symbol != ' ')
+        if (symbol != ' ')
             hasAnotherArgue = true;
     }
     return hasAnotherArgue;
 }
+
 
 void addCommand(stack_t *const stk)
 {
@@ -185,30 +202,6 @@ void addCommand(stack_t *const stk)
     int sum    = value1 + value2;
     stackPush(stk, sum);
 }
-
-void pushRCommand(stack_t *const stk, int value, processor *proc)
-{
-    switch(value)
-    {
-        case AX:
-            stackPush(stk, proc->reg[AX]);
-            break;
-        case BX:
-            stackPush(stk, proc->reg[BX]);
-            break;
-        case CX:
-            stackPush(stk, proc->reg[CX]);
-            break;
-        case DX:
-            stackPush(stk, proc->reg[DX]);
-            break;
-        default:
-            ERROR_PRINTF("Wrong argument\n");
-            break;
-    }
-}
-
-
 
 
 bool anyJMPCommand(stack_t *const stk, processor *proc, byteCode *code, int command)
@@ -225,7 +218,7 @@ bool anyJMPCommand(stack_t *const stk, processor *proc, byteCode *code, int comm
     bool condition = false;
     switch (command)
     {
-        case JMP: condition = true;          break;
+        case JMP: condition = true;            break;
         case JA:  condition = jaCommand(stk);  break;
         case JAE: condition = jaeCommand(stk); break;
         case JB:  condition = jbCommand(stk);  break;
@@ -243,6 +236,7 @@ bool anyJMPCommand(stack_t *const stk, processor *proc, byteCode *code, int comm
     proc->instructionPointer++;
     return false;
 }
+
 
 bool callCommand(stack_t *const retStk, processor *proc, byteCode *code)
 {
@@ -263,6 +257,7 @@ bool callCommand(stack_t *const retStk, processor *proc, byteCode *code)
     return true;
 }
 
+
 bool retCommand(stack_t *const retStk, processor *proc)
 {
     if (retStk->size < 1)
@@ -273,25 +268,6 @@ bool retCommand(stack_t *const retStk, processor *proc)
 
     proc->instructionPointer = stackPop(retStk);
     return true;
-}
-
-void popRCommand(stack_t *const stk, int reg, processor *proc)
-{
-    if (stk->size < 1)
-    {
-        ERROR_PRINTF("You haven't enough values");
-        return;
-    }
-
-    int value = stackPop(stk);
-    switch (reg)
-    {
-        case AX: proc->reg[AX] = value; break;
-        case BX: proc->reg[BX] = value; break;
-        case CX: proc->reg[CX] = value; break;
-        case DX: proc->reg[DX] = value; break;
-        default: ERROR_PRINTF("Wrong register %d", reg); break;
-    }
 }
 
 
@@ -307,6 +283,7 @@ void subCommand(stack_t *const stk)
     int sub    = value2 - value1;
     stackPush(stk, sub);
 }
+
 
 void divCommand(stack_t *const stk)
 {
@@ -326,6 +303,7 @@ void divCommand(stack_t *const stk)
     stackPush(stk, div);
 }
 
+
 void mulCommand(stack_t *const stk)
 {
     if (stk->size < 2)
@@ -333,16 +311,12 @@ void mulCommand(stack_t *const stk)
         ERROR_PRINTF("You haven't enough values\n");
         return;
     }
-    if (stackTop(stk) == 0)
-    {
-        ERROR_PRINTF("Zero division");
-        return;
-    }
     int value1 = stackPop(stk);
     int value2 = stackPop(stk);
     int mul = value2 * value1;
     stackPush(stk, mul);
 }
+
 
 void outCommand(stack_t *const stk)
 {
@@ -353,6 +327,7 @@ void outCommand(stack_t *const stk)
     }
     GREEN_PRINTF("Last operation value = <%d>\n", stackTop(stk));
 }
+
 
 void inCommand(stack_t *const stk)
 {
@@ -375,6 +350,20 @@ void inCommand(stack_t *const stk)
     stackPush(stk, value);
 }
 
+
+void drawCommand(const processor *proc)
+{
+    for (int y = 0; y < SCREEN_HEIGHT; y++)
+    {
+        for (int x = 0; x < SCREEN_WIDTH; x++)
+            printf("%c ", proc->ram[y * SCREEN_WIDTH + x] != 0 ? '*' : '.');
+
+        printf("\n");
+    }
+    printf("\n");
+}
+
+
 bool jaCommand(stack_t *const stk)
 {
     if (stk->size < 2)
@@ -388,6 +377,7 @@ bool jaCommand(stack_t *const stk)
 
     return value1 > value2;
 }
+
 
 bool jaeCommand(stack_t *const stk)
 {
@@ -403,6 +393,7 @@ bool jaeCommand(stack_t *const stk)
     return value1 >= value2;
 }
 
+
 bool jbCommand(stack_t *const stk)
 {
     if (stk->size < 2)
@@ -417,6 +408,7 @@ bool jbCommand(stack_t *const stk)
     return value1 < value2;
 }
 
+
 bool jbeCommand(stack_t *const stk)
 {
     if (stk->size < 2)
@@ -430,6 +422,7 @@ bool jbeCommand(stack_t *const stk)
 
     return value1 <= value2;
 }
+
 
 bool jeCommand(stack_t *const stk)
 {
@@ -459,32 +452,98 @@ bool readArgument(processor *proc, byteCode *code, int *value, const char *name)
     return true;
 }
 
-void pushHandler(stack_t *stk, processor *proc, byteCode *code)
+
+void pushHandler(stack_t *stk, processor *proc, byteCode *code, int flags)
 {
-    int value = 0;
-    if (!readArgument(proc, code, &value, "PUSH"))
+    if (!(flags & (FLAG_REG | FLAG_NUM)))
+    {
+        ERROR_PRINTF("PUSH without argument");
         return;
+    }
+
+    int value = 0;
+
+    if (flags & FLAG_REG)
+    {
+        int reg = 0;
+        if (!readArgument(proc, code, &reg, "PUSH"))
+            return;
+
+        if (reg < 0 || reg >= REG_COUNT)
+        {
+            ERROR_PRINTF("Wrong register %d", reg);
+            return;
+        }
+        value += proc->reg[reg];
+    }
+
+    if (flags & FLAG_NUM)
+    {
+        int num = 0;
+        if (!readArgument(proc, code, &num, "PUSH"))
+            return;
+
+        value += num;
+    }
+
+    if (flags & FLAG_MEM)
+    {
+        if (value < 0 || value >= RAM_SIZE)
+        {
+            ERROR_PRINTF("RAM address %d out of range", value);
+            return;
+        }
+        value = proc->ram[value];
+    }
 
     stackPush(stk, value);
     printStackConsole(stk);
 }
 
-void pushRHandler(stack_t *stk, processor *proc, byteCode *code)
+
+void popHandler(stack_t *stk, processor *proc, byteCode *code, int flags)
 {
     int reg = 0;
-    if (!readArgument(proc, code, &reg, "PUSHr"))
+    int num = 0;
+
+    if ((flags & FLAG_REG) && !readArgument(proc, code, &reg, "POP"))
+        return;
+    if ((flags & FLAG_NUM) && !readArgument(proc, code, &num, "POP"))
         return;
 
-    pushRCommand(stk, reg, proc);
-    printStackConsole(stk);
-}
-
-void popRHandler(stack_t *stk, processor *proc, byteCode *code)
-{
-    int reg = 0;
-    if (!readArgument(proc, code, &reg, "POPr"))
+    if ((flags & FLAG_REG) && (reg < 0 || reg >= REG_COUNT))
+    {
+        ERROR_PRINTF("Wrong register %d", reg);
         return;
+    }
 
-    popRCommand(stk, reg, proc);
+    if (stk->size < 1)
+    {
+        ERROR_PRINTF("You haven't enough values");
+        return;
+    }
+
+    if (flags & FLAG_MEM)
+    {
+        int addr = ((flags & FLAG_REG) ? proc->reg[reg] : 0) +
+                   ((flags & FLAG_NUM) ? num            : 0);
+
+        if (addr < 0 || addr >= RAM_SIZE)
+        {
+            ERROR_PRINTF("RAM address %d out of range", addr);
+            return;
+        }
+        proc->ram[addr] = stackPop(stk);
+    }
+    else if ((flags & FLAG_REG) && !(flags & FLAG_NUM))
+    {
+        proc->reg[reg] = stackPop(stk);
+    }
+    else
+    {
+        ERROR_PRINTF("Bad POP argument");
+        return;
+    }
+
     printStackConsole(stk);
 }

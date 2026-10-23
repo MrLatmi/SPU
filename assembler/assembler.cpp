@@ -4,10 +4,17 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include "fileReader.cpp"
-#include "..\header.h"
+#include "../header.h"
 
 #define POISON_VALUE -13
 #define LABELS_COUNT 10
+
+
+#ifndef OPCODE_MASK
+#define OPCODE_MASK 0x1F
+enum { FLAG_NUM = 1 << 5, FLAG_REG = 1 << 6, FLAG_MEM = 1 << 7 };
+#endif
+
 
 struct output
 {
@@ -15,17 +22,31 @@ struct output
     FILE *binary;
 };
 
-int    getCommands      (char *readFileName, FILE*fileRead, FILE* fileText, FILE* fileBinary);
-void   commandCompound  (size_t lineCount, output *out, char **index);
+struct operand
+{
+    bool mem;
+    bool hasReg;
+    bool hasNum;
+    int  reg;
+    int  value;
+};
+
+//TODO: header
+//TODO: try to do code generation
+
+int    getCommands      (char *readFileName, FILE *fileRead, FILE *fileText, FILE *fileBinary);
+bool   commandCompound  (size_t lineCount, output *out, char **index);
 
 void   createLabel      (int *pointerLabels);
 
-void   firstEntrance    (size_t lineCount, char** index, int *pointerLabels);
+bool   firstEntrance    (size_t lineCount, char **index, int *pointerLabels);
+bool   secondEntrance   (size_t lineCount, output *out, char **index, int *pointerLabels);
 
-void   secondEntrance   (size_t lineCount, output *out, char **index, int *pointerLabels);
+bool   writeWords       (output *out, const int *words, int n);
 
-bool   writeCommand     (output *out, int opCode);
-bool   writeCommandArg  (output *out, int opCode, int arg);
+bool   parseOperand     (const char *args, operand *a);
+int    operandWords     (const operand *a);
+bool   writeOperand     (output *out, int opCode, const operand *a);
 
 bool   commandPush      (const char *command, const char *args, size_t lineNum, output *out);
 bool   commandPop       (const char *command, const char *args, size_t lineNum, output *out);
@@ -35,8 +56,15 @@ int    registerCode     (const char *name);
 bool   jumpOpCode       (const char *command, int *opCode);
 bool   simpleOpCode     (const char *command, int *opCode);
 
-int getCommands(char *readFileName, FILE*fileRead, FILE* fileText, FILE* fileBinary)
+
+int getCommands(char *readFileName, FILE *fileRead, FILE *fileText, FILE *fileBinary)
 {
+    if (fileText == NULL || fileBinary == NULL || fileRead == NULL)
+    {
+        printf("Cannot open file\n");
+        return POISON_VALUE;
+    }
+
     textInfo text = {};
     char **index = getIndex(fileRead, readFileName, &text, lineCompare);
 
@@ -46,39 +74,35 @@ int getCommands(char *readFileName, FILE*fileRead, FILE* fileText, FILE* fileBin
         return POISON_VALUE;
     }
 
-    if (fileText == NULL || fileBinary == NULL || fileRead == NULL)
-    {
-        printf("Cannot open file\n");
-        free(index);
-        free(text.buffer);
-        return POISON_VALUE;
-    }
-
     output out = { fileText, fileBinary };
 
-    commandCompound(text.linesCount, &out, index);
-
+    bool ok = commandCompound(text.linesCount, &out, index);
 
     free(index);
     free(text.buffer);
-    return 1;
+    return ok ? 1 : POISON_VALUE;
 }
 
 
-void commandCompound(size_t lineCount, output *out, char **index)
+bool commandCompound(size_t lineCount, output *out, char **index)
 {
     int pointerLabels[LABELS_COUNT] = {};
     createLabel(pointerLabels);
 
-    firstEntrance (lineCount, index, pointerLabels);
-    secondEntrance(lineCount, out, index, pointerLabels);
+    if (!firstEntrance(lineCount, index, pointerLabels))
+        return false;
+
+    return secondEntrance(lineCount, out, index, pointerLabels);
 }
 
 
-bool writeCommand(output *out, int opCode)
+bool writeWords(output *out, const int *words, int n)
 {
-    bool binaryWrite = fwrite(&opCode, sizeof(int), 1, out->binary) == 1;
-    bool textWrite   = fprintf(out->text, "%d\n", opCode) > 0;
+    bool binaryWrite = fwrite(words, sizeof(int), n, out->binary) == (size_t)n;
+    bool textWrite   = true;
+
+    for (int i = 0; i < n; i++)
+        textWrite &= fprintf(out->text, i + 1 < n ? "%d " : "%d\n", words[i]) > 0;
 
     if (!binaryWrite || !textWrite)
     {
@@ -90,107 +114,89 @@ bool writeCommand(output *out, int opCode)
 }
 
 
-bool writeCommandArg(output *out, int opCode, int arg)
+bool parseOperand(const char *args, operand *oper)
 {
-    int words[2] = { opCode, arg };
+    char name[32] = {};
+    int  value    = 0;
+    *oper = {};
 
-    bool binaryWrite = fwrite(words, sizeof(int), 2, out->binary) == 2;
-    bool textWrite   = fprintf(out->text, "%d %d\n", opCode, arg) > 0;
-
-    if (!binaryWrite || !textWrite)
+    if (sscanf(args, " [ %31[^+ ] + %d ]", name, &value) == 2)
+        *oper = { true,  true,  true,  0, value };
+    else if (sscanf(args, " [ %31[^] ] ]", name) == 1)
     {
-        printf("Write error\n");
-        return false;
-    }
-
-    return true;
-}
-
-
-void secondEntrance(size_t lineCount, output *out, char **index, int *pointerLabels)
-{
-    for (size_t i = 0; i < lineCount; i++)
-    {
-        char command[6] = {};
-        int nScanned = sscanf(index[i], "%5s", command);
-
-
-        if (nScanned <= 0 || command[0] == ':')
-            continue;
-
-        const char *args = index[i] + strlen(command);
-        int opCode       = 0;
-
-        if (strcmp(command, "PUSH") == 0)
-        {
-            if (!commandPush(command, args, i + 1, out))
-                return;
-        }
-        else if (strcmp(command, "POP") == 0)
-        {
-            if (!commandPop(command, args, i + 1, out))
-                return;
-        }
-        else if (simpleOpCode(command, &opCode))
-        {
-            if (!writeCommand(out, opCode))
-                return;
-        }
-        else if (jumpOpCode(command, &opCode))
-        {
-            if (!commandJump(opCode, args, i + 1, pointerLabels, out))
-                return;
-        }
+        if (sscanf(name, "%d", &value) == 1)
+            *oper = { true, false, true,  0, value };
         else
-        {
-            printf("Line %zu: undefined command\n", i + 1);
-            return;
-        }
+            *oper = { true, true,  false, 0, 0     };
     }
+    else if (sscanf(args, " %31[^+ ] + %d", name, &value) == 2)
+        *oper = { false, true,  true,  0, value };
+    else if (sscanf(args, " %d", &value) == 1)
+        *oper = { false, false, true,  0, value };
+    else if (sscanf(args, " %31s", name) == 1)
+        *oper = { false, true,  false, 0, 0     };
+    else
+        return false;
+
+    if (oper->hasReg)
+    {
+        oper->reg = registerCode(name);
+        if (oper->reg < 0)
+            return false;
+    }
+
+    return true;
+}
+
+
+int operandWords(const operand *a)
+{
+    return 1 + (a->hasReg ? 1 : 0) + (a->hasNum ? 1 : 0);
+}
+
+
+bool writeOperand(output *out, int opCode, const operand *a)
+{
+    int words[3] = {};
+    int n        = 0;
+
+    int flags = (a->mem    ? FLAG_MEM : 0) |
+                (a->hasReg ? FLAG_REG : 0) |
+                (a->hasNum ? FLAG_NUM : 0);
+
+    words[n++] = opCode | flags;
+    if (a->hasReg) words[n++] = a->reg;
+    if (a->hasNum) words[n++] = a->value;
+
+    return writeWords(out, words, n);
 }
 
 
 bool commandPush(const char *command, const char *args, size_t lineNum, output *out)
 {
-    int value         = 0;
-    char lineArgs[32] = {};
+    operand a = {};
 
-    if (sscanf(args, "%d", &value) == 1)
-        return writeCommandArg(out, PUSH, value);
-
-    if (sscanf(args, "%31s", lineArgs) == 1)
+    if (!parseOperand(args, &a))
     {
-        int reg = registerCode(lineArgs);
-
-        if (reg >= 0)
-            return writeCommandArg(out, PUSHr, reg);
-
-        printf("Line %zu: undefined %s value\n", lineNum, command);
+        printf("Line %zu: bad %s argument\n", lineNum, command);
         return false;
     }
 
-    printf("Line %zu: undefined value\n", lineNum);
-    return false;
+    return writeOperand(out, PUSH, &a);
 }
 
 
 bool commandPop(const char *command, const char *args, size_t lineNum, output *out)
 {
-    char lineArgs[32] = {};
+    operand a = {};
 
-    if (sscanf(args, "%31s", lineArgs) == 1)
+    if (!parseOperand(args, &a))
     {
-        int reg = registerCode(lineArgs);
-
-        if (reg >= 0)
-            return writeCommandArg(out, POPr, reg);
-
-        printf("Line %zu: undefined %s value\n", lineNum, command);
+        printf("Line %zu: bad %s argument\n", lineNum, command);
         return false;
     }
 
-    printf("Line %zu: undefined value\n", lineNum);
-    return false;
+    return writeOperand(out, POP, &a);
 }
 
 
@@ -223,25 +229,27 @@ bool commandJump(int opCode, const char *args, size_t lineNum, const int *pointe
         return false;
     }
 
-
-    return writeCommandArg(out, opCode, targetWord);
+    int words[2] = { opCode, targetWord };
+    return writeWords(out, words, 2);
 }
 
 
 void createLabel(int *pointerLabels)
 {
-    for(int i = 0; i < LABELS_COUNT; i++)
+    for (int i = 0; i < LABELS_COUNT; i++)
         pointerLabels[i] = -1;
 }
 
-void firstEntrance(size_t lineCount, char** index, int *pointerLabels)
+
+bool firstEntrance(size_t lineCount, char **index, int *pointerLabels)
 {
     size_t wordCounter = 0;
 
     for (size_t i = 0; i < lineCount; i++)
     {
-        char command[6] = {};
-        int nScanned = sscanf(index[i], "%5s", command);
+        char command[16] = {};
+        int  used        = 0;
+        int  nScanned    = sscanf(index[i], "%15s%n", command, &used);
         if (nScanned <= 0) continue;
 
         int opCode = 0;
@@ -249,15 +257,25 @@ void firstEntrance(size_t lineCount, char** index, int *pointerLabels)
         if (command[0] == ':')
         {
             int value = 0;
-            sscanf(index[i] + 1, "%d", &value);
+            sscanf(command + 1, "%d", &value);
 
             if (value >= 0 && value < LABELS_COUNT)
                 pointerLabels[value] = (int)wordCounter;
             else
                 printf("Line %zu: label out of range\n", i + 1);
         }
-        else if (strcmp(command, "PUSH") == 0 || strcmp(command, "POP") == 0 ||
-                 jumpOpCode(command, &opCode))
+        else if (strcmp(command, "PUSH") == 0 || strcmp(command, "POP") == 0)
+        {
+            operand a = {};
+            if (!parseOperand(index[i] + used, &a))
+            {
+                printf("Line %zu: bad %s argument\n", i + 1, command);
+                return false;
+            }
+
+            wordCounter += operandWords(&a);
+        }
+        else if (jumpOpCode(command, &opCode))
         {
             wordCounter += 2;
         }
@@ -266,6 +284,54 @@ void firstEntrance(size_t lineCount, char** index, int *pointerLabels)
             wordCounter += 1;
         }
     }
+
+    return true;
+}
+
+
+//TODO: another func to define what asm func
+bool secondEntrance(size_t lineCount, output *out, char **index, int *pointerLabels)
+{
+    for (size_t i = 0; i < lineCount; i++)
+    {
+        char command[16] = {};
+        int  used        = 0;
+        int  nScanned    = sscanf(index[i], "%15s%n", command, &used);
+
+        if (nScanned <= 0 || command[0] == ':')
+            continue;
+
+        const char *args = index[i] + used;
+        int opCode       = 0;
+
+        if (strcmp(command, "PUSH") == 0)
+        {
+            if (!commandPush(command, args, i + 1, out))
+                return false;
+        }
+        else if (strcmp(command, "POP") == 0)
+        {
+            if (!commandPop(command, args, i + 1, out))
+                return false;
+        }
+        else if (simpleOpCode(command, &opCode))
+        {
+            if (!writeWords(out, &opCode, 1))
+                return false;
+        }
+        else if (jumpOpCode(command, &opCode))
+        {
+            if (!commandJump(opCode, args, i + 1, pointerLabels, out))
+                return false;
+        }
+        else
+        {
+            printf("Line %zu: undefined command\n", i + 1);
+            return false;
+        }
+    }
+
+    return true;
 }
 
 
@@ -295,7 +361,6 @@ bool jumpOpCode(const char *command, int *opCode)
 }
 
 
-
 bool simpleOpCode(const char *command, int *opCode)
 {
     if      (strcmp(command, "ADD") == 0) *opCode = ADD;
@@ -306,6 +371,7 @@ bool simpleOpCode(const char *command, int *opCode)
     else if (strcmp(command, "RET") == 0) *opCode = RET;
     else if (strcmp(command, "HLT") == 0) *opCode = HLT;
     else if (strcmp(command, "MUL") == 0) *opCode = MUL;
+    else if (strcmp(command, "DRAW") == 0) *opCode = DRAW;
     else return false;
 
     return true;
