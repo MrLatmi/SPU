@@ -10,10 +10,11 @@ int main(int argc, char *argv[])
 
     processor proc = {};
 
+    proc.stk    = &stk;
+    proc.retStk = &retStk;
     if (argc < 2)
     {
-        printf("Write code's file name as first argument\n");
-        //commandFromConsoleExecutor(&stk);
+        printf("Enter file name with code as first argument!!!\n");
         return 0;
     }
 
@@ -23,7 +24,7 @@ int main(int argc, char *argv[])
         printf("Cannot open file <%s>\n", argv[1]);
         return 0;
     }
-    commandFromFileExecutor(&stk, &retStk, file, &proc);
+    commandFromFileExecutor(file, &proc);
     fclose(file);
     return 0;
 }

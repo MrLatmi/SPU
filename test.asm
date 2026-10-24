@@ -1,0 +1,6 @@
+PUSH 1
+POP [0]
+PUSH 1
+POP [37]
+DRAW
+HLT

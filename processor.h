@@ -7,6 +7,7 @@
 
 
 #define OPCODE_MASK 0x1F
+
 enum flags{
     FLAG_NUM = 1 << 5,
     FLAG_REG = 1 << 6,

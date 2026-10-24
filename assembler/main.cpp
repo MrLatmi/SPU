@@ -12,6 +12,7 @@ int main(int argc, char *argv[])
     FILE* fileText   = fopen(argv[2], "w");
     FILE* fileBinary = fopen(argv[3], "wb");
 
+    PRINT_NAME(fileRead);
 
     if (fileRead == NULL)
     {
@@ -36,6 +37,8 @@ int main(int argc, char *argv[])
     fclose(fileRead);
     fclose(fileText);
     fclose(fileBinary);
+
+    printf("TRUE");
 
     return 0;
 }

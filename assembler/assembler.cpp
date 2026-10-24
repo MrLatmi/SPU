@@ -1,11 +1,12 @@
 #include <stdio.h>
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <ctype.h>
 #include "fileReader.cpp"
-#include "../header.h"
-#include "header.h"
+#include "../processor.h"
+#include "assembler.h"
 #define POISON_VALUE -13
 #define LABELS_COUNT 10
 
@@ -18,7 +19,7 @@ int getCommands(char *readFileName, FILE *fileRead, FILE *fileText, FILE *fileBi
 {
     if (fileText == NULL || fileBinary == NULL || fileRead == NULL)
     {
-        printf("Cannot open file\n");
+        printf("Missing file\n");
         return POISON_VALUE;
     }
 
@@ -55,11 +56,28 @@ bool commandCompound(size_t lineCount, output *out, char **index)
 
 bool writeWords(output *out, const int *words, int n)
 {
-    bool binaryWrite = fwrite(words, sizeof(int), n, out->binary) == (size_t)n;
+    assert(out   != 0);
+    assert(words != 0);
+
+
+
+    if(!out)
+    {
+        printf("Null pointer to files struct");
+        return false;
+    }
+
+    if(!words)
+    {
+        printf("Null pointer to command words");
+        return false;
+    }
+
+    bool binaryWrite = (fwrite(words, sizeof(int), n, out->binary) == (size_t)n);
     bool textWrite   = true;
 
     for (int i = 0; i < n; i++)
-        textWrite &= fprintf(out->text, i + 1 < n ? "%d " : "%d\n", words[i]) > 0;
+        textWrite = (fprintf(out->text, i + 1 < n ? "%d " : "%d\n", words[i])) > 0;
 
     if (!binaryWrite || !textWrite)
     {
@@ -106,24 +124,25 @@ bool parseOperand(const char *args, operand *oper)
 }
 
 
-int operandWords(const operand *a)
+int operandWords(const operand *oper)
 {
-    return 1 + (a->hasReg ? 1 : 0) + (a->hasNum ? 1 : 0);
+    return 1 + (oper->hasReg ? 1 : 0) + (oper->hasNum ? 1 : 0);
 }
 
-
-bool writeOperand(output *out, int opCode, const operand *a)
+//TODO: const for func, defines for FLAG (not enum)
+bool writeOperand(output *out, int opCode, const operand *oper)
 {
     int words[3] = {};
     int n        = 0;
+    int flag     = 0;
 
-    int flags = (a->mem    ? FLAG_MEM : 0) |
-                (a->hasReg ? FLAG_REG : 0) |
-                (a->hasNum ? FLAG_NUM : 0);
+    if(oper->mem)    flag |= FLAG_MEM;
+    if(oper->hasReg) flag |= FLAG_REG;
+    if(oper->hasNum) flag |= FLAG_NUM;
 
-    words[n++] = opCode | flags;
-    if (a->hasReg) words[n++] = a->reg;
-    if (a->hasNum) words[n++] = a->value;
+    words[n++] = opCode | flag;
+    if (oper->hasReg) words[n++] = oper->reg;
+    if (oper->hasNum) words[n++] = oper->value;
 
     return writeWords(out, words, n);
 }
@@ -131,29 +150,29 @@ bool writeOperand(output *out, int opCode, const operand *a)
 
 bool commandPush(const char *command, const char *args, size_t lineNum, output *out)
 {
-    operand a = {};
+    operand oper = {};
 
-    if (!parseOperand(args, &a))
+    if (!parseOperand(args, &oper))
     {
         printf("Line %zu: bad %s argument\n", lineNum, command);
         return false;
     }
 
-    return writeOperand(out, PUSH, &a);
+    return writeOperand(out, PUSH, &oper);
 }
 
 
 bool commandPop(const char *command, const char *args, size_t lineNum, output *out)
 {
-    operand a = {};
+    operand oper = {};
 
-    if (!parseOperand(args, &a))
+    if (!parseOperand(args, &oper))
     {
         printf("Line %zu: bad %s argument\n", lineNum, command);
         return false;
     }
 
-    return writeOperand(out, POP, &a);
+    return writeOperand(out, POP, &oper);
 }
 
 
@@ -246,14 +265,14 @@ bool firstEntrance(size_t lineCount, char **index, int *pointerLabels)
 }
 
 
-//TODO: another func to define what asm func
 bool secondEntrance(size_t lineCount, output *out, char **index, int *pointerLabels)
 {
     for (size_t i = 0; i < lineCount; i++)
     {
-        char command[16] = {};
-        int  used        = 0;
-        int  nScanned    = sscanf(index[i], "%15s%n", command, &used);
+        const int commandMaxLength     = 16;
+        char command[commandMaxLength] = {};
+        int  used                      = 0;
+        int  nScanned                  = sscanf(index[i], "%16s%n", command, &used);
 
         if (nScanned <= 0 || command[0] == ':')
             continue;
@@ -291,6 +310,7 @@ bool secondEntrance(size_t lineCount, output *out, char **index, int *pointerLab
     return true;
 }
 
+//TODO: Создать одну функцию для одинаковых strcmp, чтобы не путаться и быть уверенным, что все в одном месте
 
 int registerCode(const char *name)
 {
