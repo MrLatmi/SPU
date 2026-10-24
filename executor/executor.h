@@ -2,8 +2,6 @@
 #define _EXECUTOR_
 
 
-#define IP_CHECKER SIZE_MAX - 100
-
 #define MAKE_DEBUG(arg) ON_DEBUG(, debug_info_t{ __FILE__, __func__, __LINE__, arg })
 
 #define REG_COUNT 4
@@ -12,16 +10,10 @@
 
 #define SCREEN_WIDTH  32
 
-
-//TODO: another header for formating print
 #define SCREEN_HEIGHT 32
 
 #define RAM_SIZE (SCREEN_WIDTH * SCREEN_HEIGHT)
 
-#define ERROR_PRINTF(format, ...) printf("\033[1;31m" format " %s, %d \033[0m\n" __VA_OPT__(,) __VA_ARGS__, __FILE__, __LINE__)
-#define GREEN_PRINTF(format, ...) printf("\033[1;32m" format "\033[0m\n" __VA_OPT__(,) __VA_ARGS__)
-
-#define PRINT_NAME  (variable)    printf("Variable name: %s", #variable)
 
 struct processor
 {

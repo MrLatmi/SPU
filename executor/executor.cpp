@@ -3,7 +3,7 @@
 #include "fileReader.cpp"
 #include "../processor.h"
 #include "executor.h"
-
+#include "../formatingPrint.h"
 
 
 static void parseCommand(int *const op, int *const flags, const int word)

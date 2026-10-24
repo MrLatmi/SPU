@@ -1,5 +1,5 @@
 #include "assembler.cpp"
-
+#include "../formatingPrint.h"
 int main(int argc, char *argv[])
 {
     if (argc < 4)

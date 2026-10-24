@@ -7,7 +7,7 @@
 #include "fileReader.cpp"
 #include "../processor.h"
 #include "assembler.h"
-#define POISON_VALUE -13
+
 #define LABELS_COUNT 10
 
 
@@ -15,12 +15,12 @@
 
 
 
-int getCommands(char *readFileName, FILE *fileRead, FILE *fileText, FILE *fileBinary)
+int getCommands(const char *const readFileName, FILE *const fileRead, FILE *const fileText, FILE *const fileBinary)
 {
     if (fileText == NULL || fileBinary == NULL || fileRead == NULL)
     {
         printf("Missing file\n");
-        return POISON_VALUE;
+        return 1;
     }
 
     textInfo text = {};
@@ -29,7 +29,7 @@ int getCommands(char *readFileName, FILE *fileRead, FILE *fileText, FILE *fileBi
     if (index == nullptr)
     {
         printf("Fail\n");
-        return POISON_VALUE;
+        return 1;
     }
 
     output out = { fileText, fileBinary };
@@ -38,11 +38,11 @@ int getCommands(char *readFileName, FILE *fileRead, FILE *fileText, FILE *fileBi
 
     free(index);
     free(text.buffer);
-    return ok ? 1 : POISON_VALUE;
+    return ok ? 0 : 1;
 }
 
 
-bool commandCompound(size_t lineCount, output *out, char **index)
+bool commandCompound(const size_t lineCount, output *const out, char **index)
 {
     int pointerLabels[LABELS_COUNT] = {};
     createLabel(pointerLabels);
@@ -54,7 +54,7 @@ bool commandCompound(size_t lineCount, output *out, char **index)
 }
 
 
-bool writeWords(output *out, const int *words, int n)
+bool writeWords(output *const out, const int *words, size_t n)
 {
     assert(out   != 0);
     assert(words != 0);
@@ -73,10 +73,10 @@ bool writeWords(output *out, const int *words, int n)
         return false;
     }
 
-    bool binaryWrite = (fwrite(words, sizeof(int), n, out->binary) == (size_t)n);
+    bool binaryWrite = (fwrite(words, sizeof(int), n, out->binary) == n);
     bool textWrite   = true;
 
-    for (int i = 0; i < n; i++)
+    for (size_t i = 0; i < n; i++)
         textWrite = (fprintf(out->text, i + 1 < n ? "%d " : "%d\n", words[i])) > 0;
 
     if (!binaryWrite || !textWrite)
@@ -89,7 +89,7 @@ bool writeWords(output *out, const int *words, int n)
 }
 
 
-bool parseOperand(const char *args, operand *oper)
+bool parseOperand(const char *const args, operand *const oper)
 {
     char name[32] = {};
     int  value    = 0;
@@ -124,13 +124,13 @@ bool parseOperand(const char *args, operand *oper)
 }
 
 
-int operandWords(const operand *oper)
+int operandWords(const operand *const oper)
 {
     return 1 + (oper->hasReg ? 1 : 0) + (oper->hasNum ? 1 : 0);
 }
 
 //TODO: const for func, defines for FLAG (not enum)
-bool writeOperand(output *out, int opCode, const operand *oper)
+bool writeOperand(output *const out, const int opCode, const operand *const oper)
 {
     int words[3] = {};
     int n        = 0;
@@ -148,7 +148,7 @@ bool writeOperand(output *out, int opCode, const operand *oper)
 }
 
 
-bool commandPush(const char *command, const char *args, size_t lineNum, output *out)
+bool commandPush(const char *const command, const char *const args, const size_t lineNum, output *const out)
 {
     operand oper = {};
 
@@ -162,7 +162,7 @@ bool commandPush(const char *command, const char *args, size_t lineNum, output *
 }
 
 
-bool commandPop(const char *command, const char *args, size_t lineNum, output *out)
+bool commandPop(const char *const command, const char *const args, const size_t lineNum, output *const out)
 {
     operand oper = {};
 
@@ -176,7 +176,7 @@ bool commandPop(const char *command, const char *args, size_t lineNum, output *o
 }
 
 
-bool commandJump(int opCode, const char *args, size_t lineNum, const int *pointerLabels, output *out)
+bool commandJump(const int opCode, const char *const args, const size_t lineNum, const int *const pointerLabels, output *const out)
 {
     char lineArg[32] = {};
 
@@ -210,14 +210,14 @@ bool commandJump(int opCode, const char *args, size_t lineNum, const int *pointe
 }
 
 
-void createLabel(int *pointerLabels)
+void createLabel(int *const pointerLabels)
 {
     for (int i = 0; i < LABELS_COUNT; i++)
         pointerLabels[i] = -1;
 }
 
 
-bool firstEntrance(size_t lineCount, char **index, int *pointerLabels)
+bool firstEntrance(const size_t lineCount, char *const*const index, int *const pointerLabels)
 {
     size_t wordCounter = 0;
 
@@ -265,7 +265,7 @@ bool firstEntrance(size_t lineCount, char **index, int *pointerLabels)
 }
 
 
-bool secondEntrance(size_t lineCount, output *out, char **index, int *pointerLabels)
+bool secondEntrance(const size_t lineCount, output *const out, char *const*const index, int *const pointerLabels)
 {
     for (size_t i = 0; i < lineCount; i++)
     {
@@ -312,7 +312,7 @@ bool secondEntrance(size_t lineCount, output *out, char **index, int *pointerLab
 
 //TODO: Создать одну функцию для одинаковых strcmp, чтобы не путаться и быть уверенным, что все в одном месте
 
-int registerCode(const char *name)
+int registerCode(const char *const name)
 {
     if      (strcmp(name, "AX") == 0) return AX;
     else if (strcmp(name, "BX") == 0) return BX;
@@ -323,7 +323,7 @@ int registerCode(const char *name)
 }
 
 
-bool jumpOpCode(const char *command, int *opCode)
+bool jumpOpCode(const char *const command, int *const opCode)
 {
     if      (strcmp(command, "JMP")  == 0) *opCode = JMP;
     else if (strcmp(command, "JA")   == 0) *opCode = JA;
@@ -338,7 +338,7 @@ bool jumpOpCode(const char *command, int *opCode)
 }
 
 
-bool simpleOpCode(const char *command, int *opCode)
+bool simpleOpCode(const char *const command, int *const opCode)
 {
     if      (strcmp(command, "ADD") == 0) *opCode = ADD;
     else if (strcmp(command, "SUB") == 0) *opCode = SUB;
