@@ -42,7 +42,7 @@ int getCommands(const char *const readFileName, FILE *const fileRead, FILE *cons
 }
 
 
-bool commandCompound(const size_t lineCount, output *const out, char **index)
+static bool commandCompound(const size_t lineCount, output *const out, char *const*const index)
 {
     int pointerLabels[LABELS_COUNT] = {};
     createLabel(pointerLabels);
@@ -54,7 +54,7 @@ bool commandCompound(const size_t lineCount, output *const out, char **index)
 }
 
 
-bool writeWords(output *const out, const int *words, size_t n)
+static bool writeWords(output *const out, const int *const words, const size_t n)
 {
     assert(out   != 0);
     assert(words != 0);
@@ -89,7 +89,7 @@ bool writeWords(output *const out, const int *words, size_t n)
 }
 
 
-bool parseOperand(const char *const args, operand *const oper)
+static bool parseOperand(const char *const args, operand *const oper)
 {
     char name[32] = {};
     int  value    = 0;
@@ -124,13 +124,13 @@ bool parseOperand(const char *const args, operand *const oper)
 }
 
 
-int operandWords(const operand *const oper)
+static int operandWords(const operand *const oper)
 {
     return 1 + (oper->hasReg ? 1 : 0) + (oper->hasNum ? 1 : 0);
 }
 
-//TODO: const for func, defines for FLAG (not enum)
-bool writeOperand(output *const out, const int opCode, const operand *const oper)
+
+static bool writeOperand(output *const out, const int opCode, const operand *const oper)
 {
     int words[3] = {};
     int n        = 0;
@@ -148,7 +148,7 @@ bool writeOperand(output *const out, const int opCode, const operand *const oper
 }
 
 
-bool commandPush(const char *const command, const char *const args, const size_t lineNum, output *const out)
+static bool commandPush(const char *const command, const char *const args, const size_t lineNum, output *const out)
 {
     operand oper = {};
 
@@ -162,7 +162,7 @@ bool commandPush(const char *const command, const char *const args, const size_t
 }
 
 
-bool commandPop(const char *const command, const char *const args, const size_t lineNum, output *const out)
+static bool commandPop(const char *const command, const char *const args, const size_t lineNum, output *const out)
 {
     operand oper = {};
 
@@ -176,7 +176,7 @@ bool commandPop(const char *const command, const char *const args, const size_t 
 }
 
 
-bool commandJump(const int opCode, const char *const args, const size_t lineNum, const int *const pointerLabels, output *const out)
+static bool commandJump(const int opCode, const char *const args, const size_t lineNum, const int *const pointerLabels, output *const out)
 {
     char lineArg[32] = {};
 
@@ -210,14 +210,14 @@ bool commandJump(const int opCode, const char *const args, const size_t lineNum,
 }
 
 
-void createLabel(int *const pointerLabels)
+static void createLabel(int *const pointerLabels)
 {
     for (int i = 0; i < LABELS_COUNT; i++)
         pointerLabels[i] = -1;
 }
 
 
-bool firstEntrance(const size_t lineCount, char *const*const index, int *const pointerLabels)
+static bool firstEntrance(const size_t lineCount, char *const*const index, int *const pointerLabels)
 {
     size_t wordCounter = 0;
 
@@ -265,7 +265,7 @@ bool firstEntrance(const size_t lineCount, char *const*const index, int *const p
 }
 
 
-bool secondEntrance(const size_t lineCount, output *const out, char *const*const index, int *const pointerLabels)
+static bool secondEntrance(const size_t lineCount, output *const out, char *const*const index, int *const pointerLabels)
 {
     for (size_t i = 0; i < lineCount; i++)
     {
@@ -310,9 +310,7 @@ bool secondEntrance(const size_t lineCount, output *const out, char *const*const
     return true;
 }
 
-//TODO: Создать одну функцию для одинаковых strcmp, чтобы не путаться и быть уверенным, что все в одном месте
-
-int registerCode(const char *const name)
+static int registerCode(const char *const name)
 {
     if      (strcmp(name, "AX") == 0) return AX;
     else if (strcmp(name, "BX") == 0) return BX;
@@ -323,7 +321,7 @@ int registerCode(const char *const name)
 }
 
 
-bool jumpOpCode(const char *const command, int *const opCode)
+static bool jumpOpCode(const char *const command, int *const opCode)
 {
     if      (strcmp(command, "JMP")  == 0) *opCode = JMP;
     else if (strcmp(command, "JA")   == 0) *opCode = JA;
@@ -338,7 +336,7 @@ bool jumpOpCode(const char *const command, int *const opCode)
 }
 
 
-bool simpleOpCode(const char *const command, int *const opCode)
+static bool simpleOpCode(const char *const command, int *const opCode)
 {
     if      (strcmp(command, "ADD") == 0) *opCode = ADD;
     else if (strcmp(command, "SUB") == 0) *opCode = SUB;
@@ -353,3 +351,5 @@ bool simpleOpCode(const char *const command, int *const opCode)
 
     return true;
 }
+
+

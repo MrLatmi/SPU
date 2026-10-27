@@ -19,26 +19,26 @@ struct operand
 };
 
 
-int    getCommands      (const char *readFileName, FILE *fileRead, FILE *fileText, FILE *fileBinary);
-bool   commandCompound  (const size_t lineCount, output *out, char **index);
+int           getCommands      (const char *readFileName, FILE *fileRead, FILE *fileText, FILE *fileBinary);
+static bool   commandCompound  (const size_t lineCount, output *out, char *const*index);
 
-void   createLabel      (int *pointerLabels);
+static void   createLabel      (int *pointerLabels);
 
-bool   firstEntrance    (const size_t lineCount, char *const*index, int *pointerLabels);
-bool   secondEntrance   (const size_t lineCount, output *out, char *const*index, int *pointerLabels);
+static bool   firstEntrance    (const size_t lineCount, char *const*index, int *pointerLabels);
+static bool   secondEntrance   (const size_t lineCount, output *out, char *const*index, int *pointerLabels);
 
-bool   writeWords       (output *out, const int *words, size_t n);
+static bool   writeWords       (output *out, const int *words, const size_t n);
 
-bool   parseOperand     (const char *args, operand *oper);
-int    operandWords     (const operand *oper);
-bool   writeOperand     (output *out, const int opCode, const operand *oper);
+static bool   parseOperand     (const char *args, operand *oper);
+static int    operandWords     (const operand *oper);
+static bool   writeOperand     (output *out, const int opCode, const operand *oper);
 
-bool   commandPush      (const char *command, const char *args, const size_t lineNum, output *out);
-bool   commandPop       (const char *command, const char *args, const size_t lineNum, output *out);
-bool   commandJump      (const int opCode, const char *args, const size_t lineNum, const int *pointerLabels, output *out);
+static bool   commandPush      (const char *command, const char *args, const size_t lineNum, output *out);
+static bool   commandPop       (const char *command, const char *args, const size_t lineNum, output *out);
+static bool   commandJump      (const int opCode, const char *args, const size_t lineNum, const int *pointerLabels, output *out);
 
-int    registerCode     (const char *name);
-bool   jumpOpCode       (const char *command, int *opCode);
-bool   simpleOpCode     (const char *command, int *opCode);
+static int    registerCode     (const char *name);
+static bool   jumpOpCode       (const char *command, int *opCode);
+static bool   simpleOpCode     (const char *command, int *opCode);
 
 #endif

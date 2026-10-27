@@ -33,30 +33,29 @@ struct byteCode
 
 void commandFromFileExecutor    (FILE* file, processor *proc);
 
-bool loadByteCode               (FILE* file, byteCode *code);
+static bool loadByteCode               (FILE* file, byteCode *code);
+static bool anyJMPCommand              (processor *proc, const byteCode *code, const int command);
 
-bool anyJMPCommand              (processor *proc, const byteCode *code, const int command);
+static int  bufferChecker              ();
 
-int  bufferChecker              ();
+static void addCommand                 (processor *proc);
+static void subCommand                 (processor *proc);
+static void divCommand                 (processor *proc);
+static void mulCommand                 (processor *proc);
+static void outCommand                 (processor *proc);
+static void inCommand                  (processor *proc);
+static void drawCommand                (processor *proc);
+static bool jaCommand                  (processor *proc);
+static bool jaeCommand                 (processor *proc);
+static bool jbCommand                  (processor *proc);
+static bool jbeCommand                 (processor *proc);
+static bool jeCommand                  (processor *proc);
 
-void addCommand                 (processor *proc);
-void subCommand                 (processor *proc);
-void divCommand                 (processor *proc);
-void mulCommand                 (processor *proc);
-void outCommand                 (processor *proc);
-void inCommand                  (processor *proc);
-void drawCommand                (processor *proc);
-bool jaCommand                  (processor *proc);
-bool jaeCommand                 (processor *proc);
-bool jbCommand                  (processor *proc);
-bool jbeCommand                 (processor *proc);
-bool jeCommand                  (processor *proc);
+static bool callCommand                (processor *proc, const byteCode *code);
+static bool retCommand                 (processor *proc);
 
-bool callCommand                (processor *proc, const byteCode *code);
-bool retCommand                 (processor *proc);
-
-bool readArgument               (processor *proc, const byteCode *code, int *value, const char *name);
-void pushHandler                (processor *proc, const byteCode *code, const int flags);
-void popHandler                 (processor *proc, const byteCode *code, const int flags);
+static bool readArgument               (processor *proc, const byteCode *code, int *value, const char *name);
+static void pushHandler                (processor *proc, const byteCode *code, const int flags);
+static void popHandler                 (processor *proc, const byteCode *code, const int flags);
 
 #endif

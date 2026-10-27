@@ -91,7 +91,7 @@ void commandFromFileExecutor(FILE*const file, processor *const proc)
 }
 
 
-bool loadByteCode(FILE*const file, byteCode *const code)
+static bool loadByteCode(FILE*const file, byteCode *const code)
 {
     int const startCapacitySize    = 64;
 
@@ -126,7 +126,7 @@ bool loadByteCode(FILE*const file, byteCode *const code)
 }
 
 
-int bufferChecker()
+static int bufferChecker()
 {
     int symbol           = 0;
     bool hasAnotherArgue = false;
@@ -139,7 +139,7 @@ int bufferChecker()
 }
 
 
-void addCommand(processor *const proc)
+static void addCommand(processor *const proc)
 {
     if (proc->stk->size < 2)
     {
@@ -153,7 +153,7 @@ void addCommand(processor *const proc)
 }
 
 
-bool anyJMPCommand(processor *const proc, const byteCode *const code, const int command)
+static bool anyJMPCommand(processor *const proc, const byteCode *const code, const int command)
 {
     int nextIp = proc->instructionPointer + 1;
     if (nextIp >= code->size)
@@ -187,7 +187,7 @@ bool anyJMPCommand(processor *const proc, const byteCode *const code, const int 
 }
 
 
-bool callCommand(processor *const proc, const byteCode *const code)
+static bool callCommand(processor *const proc, const byteCode *const code)
 {
     int targetAddress = 0;
     if (!readArgument(proc, code, &targetAddress, "CALL"))
@@ -207,7 +207,7 @@ bool callCommand(processor *const proc, const byteCode *const code)
 }
 
 
-bool retCommand(processor *const proc)
+static bool retCommand(processor *const proc)
 {
     if (proc->retStk->size < 1)
     {
@@ -220,7 +220,7 @@ bool retCommand(processor *const proc)
 }
 
 
-void subCommand(processor *const proc)
+static void subCommand(processor *const proc)
 {
     if (proc->stk->size < 2)
     {
@@ -234,7 +234,7 @@ void subCommand(processor *const proc)
 }
 
 
-void divCommand(processor *const proc)
+static void divCommand(processor *const proc)
 {
     if (proc->stk->size < 2)
     {
@@ -253,7 +253,7 @@ void divCommand(processor *const proc)
 }
 
 
-void mulCommand(processor *const proc)
+static void mulCommand(processor *const proc)
 {
     if (proc->stk->size < 2)
     {
@@ -267,7 +267,7 @@ void mulCommand(processor *const proc)
 }
 
 
-void outCommand(processor *const proc)
+static void outCommand(processor *const proc)
 {
     if (proc->stk->size < 1)
     {
@@ -278,7 +278,7 @@ void outCommand(processor *const proc)
 }
 
 
-void inCommand(processor *const proc)
+static void inCommand(processor *const proc)
 {
     int value = 0;
 
@@ -300,7 +300,7 @@ void inCommand(processor *const proc)
 }
 
 
-void drawCommand(processor *const proc)
+static void drawCommand(processor *const proc)
 {
     for (int y = 0; y < SCREEN_HEIGHT; y++)
     {
@@ -313,7 +313,7 @@ void drawCommand(processor *const proc)
 }
 
 
-bool jaCommand(processor *const proc)
+static bool jaCommand(processor *const proc)
 {
     if (proc->stk->size < 2)
     {
@@ -328,7 +328,7 @@ bool jaCommand(processor *const proc)
 }
 
 
-bool jaeCommand(processor *const proc)
+static bool jaeCommand(processor *const proc)
 {
     if (proc->stk->size < 2)
     {
@@ -343,7 +343,7 @@ bool jaeCommand(processor *const proc)
 }
 
 
-bool jbCommand(processor *const proc)
+static bool jbCommand(processor *const proc)
 {
     if (proc->stk->size < 2)
     {
@@ -358,7 +358,7 @@ bool jbCommand(processor *const proc)
 }
 
 
-bool jbeCommand(processor *const proc)
+static bool jbeCommand(processor *const proc)
 {
     if (proc->stk->size < 2)
     {
@@ -373,7 +373,7 @@ bool jbeCommand(processor *const proc)
 }
 
 
-bool jeCommand(processor *const proc)
+static bool jeCommand(processor *const proc)
 {
     if (proc->stk->size < 2)
     {
@@ -388,7 +388,7 @@ bool jeCommand(processor *const proc)
 }
 
 
-bool readArgument(processor *const proc, const byteCode *const code, int *const value, const char *const name)
+static bool readArgument(processor *const proc, const byteCode *const code, int *const value, const char *const name)
 {
     proc->instructionPointer++;
     if (proc->instructionPointer >= code->size)
@@ -402,7 +402,7 @@ bool readArgument(processor *const proc, const byteCode *const code, int *const 
 }
 
 
-void pushHandler(processor *const proc, const byteCode *const code, const int flags)
+static void pushHandler(processor *const proc, const byteCode *const code, const int flags)
 {
 
     int value = 0;
@@ -445,7 +445,7 @@ void pushHandler(processor *const proc, const byteCode *const code, const int fl
 }
 
 
-void popHandler(processor *const proc, const byteCode *const code, const int flags)
+static void popHandler(processor *const proc, const byteCode *const code, const int flags)
 {
     int reg = 0;
     int num = 0;
